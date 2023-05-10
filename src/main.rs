@@ -1,70 +1,80 @@
 mod commands;
-use std::env;
+mod mongo;
+use poise::serenity_prelude::{self as serenity};
 
-use serenity::async_trait;
-use serenity::model::application::interaction::{Interaction, InteractionResponseType};
-use serenity::model::gateway::Ready;
-use serenity::model::id::GuildId;
-use serenity::prelude::*;
+type Error = Box<dyn std::error::Error + Send + Sync>;
 
-struct Handler;
+#[macro_use]
+//.env variables
+extern crate dotenv_codegen;
 
-#[async_trait]
-impl EventHandler for Handler {
-    async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
-        if let Interaction::ApplicationCommand(command) = interaction {
-            println!("Received command interaction: {:#?}", command);
+//Constants
+// Your Bot token
+const DISCORD_TOKEN: &str = dotenv!("DISCORD_TOKEN");
+const PRIVATEGUILDID: serenity::GuildId = serenity::GuildId(848614783862964235);
 
-            let content = match command.data.name.as_str() {
-                "ping" => commands::ping::run(&command.data.options),
-                _ => "not implemented :(".to_string(),
-            };
+async fn on_ready(
+    ctx: &serenity::Context,
+    ready: &serenity::Ready,
+    framework: &poise::Framework<(), Error>,
+) -> Result<(), Error> {
+    // To announce that the bot is online.
+    println!("{} is connected!", ready.user.name);
 
-            if let Err(why) = command
-                .create_interaction_response(&ctx.http, |response| {
-                    response
-                        .kind(InteractionResponseType::ChannelMessageWithSource)
-                        .interaction_response_data(|message| message.content(content))
-                })
-                .await
-            {
-                println!("Cannot respond to slash command: {}", why);
-            }
-        }
-    }
+    // This registers commands for the bot, guild commands are instantly active on specified servers
+    //
+    // The commands you specify here only work in your own guild!
+    // This is useful if you want to control your bot from within your personal server,
+    // but dont want other servers to have access to it.
+    // For example sending an announcement to all servers it is located in.
+    let builder = poise::builtins::create_application_commands(&framework.options().commands);
+    let commands =
+        serenity::GuildId::set_application_commands(&PRIVATEGUILDID, &ctx.http, |commands| {
+            *commands = builder.clone();
 
-    async fn ready(&self, ctx: Context, ready: Ready) {
-        println!("{} is connected!", ready.user.name);
-
-        let guild_id = GuildId(
-            env::var("GUILD_ID")
-                .expect("Expected GUILD_ID in environment")
-                .parse()
-                .expect("GUILD_ID must be an integer"),
-        );
-
-        let commands = GuildId::set_application_commands(&guild_id, &ctx.http, |commands| {
-            commands.create_application_command(|command| commands::ping::register(command))
+            commands
         })
         .await;
+    // This line runs on start-up to tell you which commands succesfully booted.
+    // println!(
+    //     "I now have the following guild slash commands: \n{:#?}",
+    //     commands
+    // );
 
-        println!(
-            "I now have the following guild slash commands: {:#?}",
+    // Below we register Global commands, global commands can take some time to update on all servers the bot is active in
+    //
+    // Global commands are availabe in every server, including DM's.
+    // We call the commands folder, the ping file and then the register function.
+    let global_command1 =
+        serenity::Command::set_global_application_commands(&ctx.http, |commands| {
+            *commands = builder;
             commands
-        );
+        })
+        .await;
+    // println!(
+    //     "I now have the following guild slash commands: \n{:#?}",
+    //     global_command1
+    // );
 
-        println!("I created the following global slash command");
-    }
+    Ok(())
 }
 
+#[allow(unused_doc_comments)]
 #[tokio::main]
 async fn main() {
-    let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
-
-    let mut client = Client::builder(token, GatewayIntents::empty())
-        .event_handler(Handler)
+    let client = poise::Framework::builder()
+        .token(DISCORD_TOKEN)
+        .intents(serenity::GatewayIntents::empty())
+        .options(poise::FrameworkOptions {
+            commands: vec![commands::cards::ping::ping()],
+            ..Default::default()
+        })
+        .user_data_setup(|ctx, ready, framework| Box::pin(on_ready(ctx, ready, framework)))
+        .build()
         .await
         .expect("Error creating client");
+
+    let connect_mongo = mongo::Mongo::new().await.unwrap();
 
     if let Err(why) = client.start().await {
         println!("Client error: {:?}", why);
