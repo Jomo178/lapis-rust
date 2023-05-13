@@ -1,80 +1,41 @@
 mod commands;
-mod mongo;
+mod events;
+// mod handler;
 use poise::serenity_prelude::{self as serenity};
+use nongoose::Client;
 
 type Error = Box<dyn std::error::Error + Send + Sync>;
 
 #[macro_use]
-//.env variables
 extern crate dotenv_codegen;
 
-//Constants
-// Your Bot token
-const DISCORD_TOKEN: &str = dotenv!("DISCORD_TOKEN");
-const PRIVATEGUILDID: serenity::GuildId = serenity::GuildId(848614783862964235);
-
-async fn on_ready(
-    ctx: &serenity::Context,
-    ready: &serenity::Ready,
-    framework: &poise::Framework<(), Error>,
-) -> Result<(), Error> {
-    // To announce that the bot is online.
-    println!("{} is connected!", ready.user.name);
-
-    // This registers commands for the bot, guild commands are instantly active on specified servers
-    //
-    // The commands you specify here only work in your own guild!
-    // This is useful if you want to control your bot from within your personal server,
-    // but dont want other servers to have access to it.
-    // For example sending an announcement to all servers it is located in.
-    let builder = poise::builtins::create_application_commands(&framework.options().commands);
-    let commands =
-        serenity::GuildId::set_application_commands(&PRIVATEGUILDID, &ctx.http, |commands| {
-            *commands = builder.clone();
-
-            commands
-        })
-        .await;
-    // This line runs on start-up to tell you which commands succesfully booted.
-    // println!(
-    //     "I now have the following guild slash commands: \n{:#?}",
-    //     commands
-    // );
-
-    // Below we register Global commands, global commands can take some time to update on all servers the bot is active in
-    //
-    // Global commands are availabe in every server, including DM's.
-    // We call the commands folder, the ping file and then the register function.
-    let global_command1 =
-        serenity::Command::set_global_application_commands(&ctx.http, |commands| {
-            *commands = builder;
-            commands
-        })
-        .await;
-    // println!(
-    //     "I now have the following guild slash commands: \n{:#?}",
-    //     global_command1
-    // );
-
-    Ok(())
-}
 
 #[allow(unused_doc_comments)]
 #[tokio::main]
 async fn main() {
     let client = poise::Framework::builder()
-        .token(DISCORD_TOKEN)
+        .token(dotenv!("DISCORD_TOKEN"))
         .intents(serenity::GatewayIntents::empty())
         .options(poise::FrameworkOptions {
-            commands: vec![commands::cards::ping::ping()],
+            commands: vec![
+                commands::cards::ping::ping(),
+                commands::cards::open::open()
+                ],
             ..Default::default()
         })
-        .user_data_setup(|ctx, ready, framework| Box::pin(on_ready(ctx, ready, framework)))
+        .user_data_setup(|ctx, ready, framework| Box::pin(events::client::ready::on_ready(ctx, ready, framework)))
         .build()
         .await
         .expect("Error creating client");
 
-    let connect_mongo = mongo::Mongo::new().await.unwrap();
+    let client_monogo = match Client::with_uri_str(dotenv!("MONGODB_URI")) {
+        Ok(client_monogo) => client_monogo,
+        Err(e) => panic!("Error connecting to the database: {}", e),
+      };
+    
+        let mongoose = nongoose::Nongoose::builder(client_monogo.database("l")).build();
+
+// let slash = handler::slash::load_commands();
 
     if let Err(why) = client.start().await {
         println!("Client error: {:?}", why);
