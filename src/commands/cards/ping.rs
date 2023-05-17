@@ -1,14 +1,23 @@
-use crate::{database::get_collection, Error};
-use tokio::task::spawn_blocking;
+use crate::{
+    database::{find, findOne, get_collection},
+    Error,
+};
+use mongodb::{
+    bson::{doc, Document},
+    Collection,
+};
 
 #[poise::command(slash_command)]
 pub async fn ping(ctx: poise::Context<'_, (), Error>) -> Result<(), Error> {
-    let collection = spawn_blocking(move || get_collection("mycollection")).await?;
+    let issues_collection: Collection<Document> = get_collection("issues");
 
-    let length = collection.count_documents(None, None).await.unwrap();
+    let cursor = find(issues_collection.clone(), doc! {"rarity": 5, "old": false}).await;
 
-    ctx.send(|b| b.content(format!("The collection length is {}.", length)))
-        .await?;
+    let dunno = findOne(issues_collection.clone(), doc! {"rarity": 5, "old": false}).await;
+
+    print!("{:#?}", dunno);
+
+    ctx.send(|b| b.content("The collection length is")).await?;
 
     Ok(())
 }

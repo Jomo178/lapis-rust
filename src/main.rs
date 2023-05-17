@@ -11,7 +11,7 @@ async fn main() {
         .token(dotenv!("DISCORD_TOKEN"))
         .intents(serenity::GatewayIntents::empty())
         .options(poise::FrameworkOptions {
-            commands: vec![commands::cards::ping::ping()],
+            commands: vec![commands::cards::ping::ping(), commands::cards::open::open()],
             ..Default::default()
         })
         .user_data_setup(|ctx, ready, framework| {

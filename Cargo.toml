@@ -22,5 +22,7 @@ dotenv_codegen = "0.15.0"
 poise = "0.3.0"
 anyhow = "1.0.71"
 lazy_static = "1.4.0"
+rand = "0.8.5"
+futures-lite = "1.13.0"
 [target.'cfg(unix)'.dependencies]
 openssl = { version = "0.10.45", features = ["vendored"] }
