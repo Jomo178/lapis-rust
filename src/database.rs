@@ -1,40 +1,29 @@
-use anyhow::Result;
 use dotenv_codegen::dotenv;
-use lazy_static::lazy_static;
 use mongodb::{
     bson::{doc, Document},
-    Client, Collection,
+    Client, Database,
 };
+use std::sync::Mutex;
 
-// Define a lazy static database connection
-lazy_static! {
-    static ref DATABASE_CLIENT: Client = {
-        tokio::runtime::Runtime::new()
-            .expect("Failed to create Tokio runtime")
-            .block_on(async {
-                Client::with_uri_str(dotenv!("MONGODB_URI"))
-                    .await
-                    .expect("Failed to connect to the database")
-            })
-    };
+lazy_static::lazy_static! {
+    static ref DATABASE: Mutex<Option<Database>> = Mutex::new(None);
 }
 
-// Get a collection from the database
-pub fn get_collection(collection_name: &str) -> Collection<Document> {
-    let db = DATABASE_CLIENT.database("lapis");
-    let collection = db.collection(collection_name);
-    collection
+pub async fn connect() -> Result<String, String> {
+    match Client::with_uri_str(dotenv!("MONGODB_URI")).await {
+        Ok(client) => {
+            let mut db_lock = DATABASE.lock().expect("Failed to acquire lock");
+            *db_lock = Some(client.database("lapis"));
+            Ok("Mongo Connected".to_string())
+        }
+        Err(err) => Err(format!("Failed to connect to the database: {}", err)),
+    }
 }
 
-// Insert a document into a collection
-pub fn insert_document(collection: &Collection<Document>, document: Document) -> Result<()> {
-    tokio::runtime::Runtime::new()
-        .expect("Failed to create Tokio runtime")
-        .block_on(async {
-            collection
-                .insert_one(document, None)
-                .await
-                .map(|_| ())
-                .map_err(Into::into)
-        })
+pub fn get_collection(collection_name: &str) -> mongodb::Collection<Document> {
+    let db_lock = DATABASE.lock().expect("Failed to acquire lock");
+    let db = db_lock
+        .as_ref()
+        .expect("Database connection not established");
+    db.collection(collection_name)
 }

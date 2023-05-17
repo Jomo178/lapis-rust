@@ -21,6 +21,11 @@ async fn main() {
         .await
         .expect("Error creating client");
 
+    match database::connect().await {
+        Ok(message) => println!("{}", message),
+        Err(error) => eprintln!("{}", error),
+    }
+
     if let Err(why) = client.start().await {
         println!("Client error: {:?}", why);
     }
