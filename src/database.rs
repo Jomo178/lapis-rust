@@ -52,11 +52,8 @@ pub async fn findOne(
     Ok(result)
 }
 
-pub async fn create(
-    database: Collection<Document>,
-    document: impl Borrow<mongodb::bson::Document>,
-) -> Result<InsertOneResult> {
-    let create: InsertOneResult = database.insert_one(document, None).await?;
+pub async fn create(database: Collection<Document>, document: Document) -> Result<Document> {
+    database.insert_one(document.clone(), None).await?;
 
-    Ok(create)
+    Ok(document)
 }
