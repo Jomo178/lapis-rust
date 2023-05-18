@@ -3,9 +3,11 @@ use dotenv_codegen::dotenv;
 use mongodb::{
     bson::{doc, Document},
     options::FindOptions,
+    results::InsertOneResult,
     Client, Collection, Database,
 };
 use poise::futures_util::TryStreamExt;
+use std::borrow::Borrow;
 use std::sync::Mutex;
 
 lazy_static::lazy_static! {
@@ -33,7 +35,8 @@ pub async fn find(
 ) -> Result<Option<Document>> {
     let result = database
         .find(filter, FindOptions::default())
-        .await?
+        .await
+        .unwrap()
         .try_next()
         .await?;
 
@@ -47,4 +50,13 @@ pub async fn findOne(
     let result = database.find_one(filter, None).await?;
 
     Ok(result)
+}
+
+pub async fn create(
+    database: Collection<Document>,
+    document: impl Borrow<mongodb::bson::Document>,
+) -> Result<InsertOneResult> {
+    let create: InsertOneResult = database.insert_one(document, None).await?;
+
+    Ok(create)
 }
